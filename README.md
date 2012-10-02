@@ -1,4 +1,5 @@
 mysql2wrapper
 =============
 
-very simple mysql2 wrapper
+very simple mysql2 wrapper.
+ore ore library!
