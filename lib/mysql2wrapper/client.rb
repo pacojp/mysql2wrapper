@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 require 'yaml'
+require 'batchbase'
+require 'mysql2'
 
-class Mysql2wrappler::Mysql2wrapper
+class Mysql2wrapper::Client
   attr_accessor :client,:output_query_log
 
   QUERY_BASE_COLOR    = 35
@@ -54,12 +56,23 @@ class Mysql2wrappler::Mysql2wrapper
     config = new_config
   end
 
-  def self.config_from_yml(yml_path,environment,db_name=nil)
+  def count(table_name,key_name='*')
+    query("SELECT COUNT(#{self.client.escape(key_name)}) AS cnt FROM #{self.client.escape(table_name)}").first['cnt']
+  end
+
+  def close
+    self.client.close if self.client
+  end
+
+  #
+  # db_server_nameはDB名そのもの（複数DB対応）
+  #
+  def self.config_from_yml(yml_path,environment,db_server_name=nil)
     db_config = YAML.load_file(yml_path)[environment]
-    if db_name
-      db_config = Batchbase::Mysql2wrapper.make_config_key_symbol(db_config[db_name])
+    if db_server_name
+      db_config = self.make_config_key_symbol(db_config[db_server_name])
     else
-      db_config = Batchbase::Mysql2wrapper.make_config_key_symbol(db_config)
+      db_config = self.make_config_key_symbol(db_config)
     end
     db_config
   end
