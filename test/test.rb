@@ -107,7 +107,7 @@ class TestMysql2wrapper < Test::Unit::TestCase
         assert_equal 3,count(client1)
         assert_equal 2,count(client2)
         insert(client2)
-        assert_equal 3,count(client1)
+        assert_equal 3,count(client1) # ここが3なのに注目
         assert_equal 3,count(client2)
         raise 'roooooooooollback!!!!'
       end
