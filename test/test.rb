@@ -94,7 +94,10 @@ class TestMysql2wrapper < Test::Unit::TestCase
     end
     assert_equal 1,count(client1)
     assert_equal 1,count(client2)
-    insert(client2)
+
+    client1.transaction do
+      insert(client2) #  raiseしないなら
+    end
     assert_equal 2,count(client1)
     assert_equal 2,count(client2)
 
@@ -107,7 +110,7 @@ class TestMysql2wrapper < Test::Unit::TestCase
         assert_equal 3,count(client1)
         assert_equal 2,count(client2)
         insert(client2)
-        assert_equal 3,count(client1) # ここが3なのに注目
+        assert_equal 3,count(client1) # ここは3
         assert_equal 3,count(client2)
         raise 'roooooooooollback!!!!'
       end
