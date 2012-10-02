@@ -76,7 +76,7 @@ class TestMysql2wrapper < Test::Unit::TestCase
     client.close
   end
 
-  def test_tranasction_2_client
+  def test_tranasction_2_clients
     client1 = get_client
     client2 = get_client
     insert(client1)
