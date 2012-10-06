@@ -7,7 +7,7 @@ require 'Fileutils'
 
 
 #
-# localhostにmysql2wrapper_testというテーブルを作成し
+# localhostにmysql2wrapper_testというデータベースを作成し
 # rootのパスワードなしでアクセスできるようにしておいてください
 #
 
