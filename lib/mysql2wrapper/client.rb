@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 require 'yaml'
-require 'batchbase'
 require 'mysql2'
 
 class Mysql2wrapper::Client
@@ -121,7 +120,7 @@ VALUES
   end.join(',')
 }
 EOS
-      self.query(query)
+      self.query(query.chomp)
     end
   end
 
