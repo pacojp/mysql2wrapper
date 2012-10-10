@@ -12,6 +12,8 @@ Gem::Specification.new do |s|
   s.description = %q{oreore mysql2 wrapper class}
 
   s.rubyforge_project = "mysql2wrapper"
+  s.add_dependency 'batchbase','0.0.2'
+  s.add_dependency 'mysql2','0.3.11'
 
   s.files         = `git ls-files`.split("\n")
   s.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")

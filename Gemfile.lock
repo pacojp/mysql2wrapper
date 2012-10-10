@@ -1,0 +1,20 @@
+PATH
+  remote: .
+  specs:
+    mysql2wrapper (0.0.1)
+      batchbase (= 0.0.2)
+      mysql2 (= 0.3.11)
+
+GEM
+  remote: http://rubygems.org/
+  specs:
+    batchbase (0.0.2)
+      sys-proctable (= 0.9.1)
+    mysql2 (0.3.11)
+    sys-proctable (0.9.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  mysql2wrapper!
