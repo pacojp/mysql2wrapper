@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 1, res.first['v_int1']
     assert_equal nil, res.first['v_int2']
 
-    client.update 'test01',{:v_int1=>3},Mysql2wrapper::Client::UPDATE_ALL
+    client.update 'test01',{:v_int1=>3}, client.update_all_flag
 
     assert_equal 3, client.affected_rows
     res = client.query "SELECT * FROM test01 WHERE id = 1"
@@ -173,6 +173,10 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     res = client.query "SELECT * FROM test01 WHERE id = 2"
     assert_equal 3, res.first['v_int1']
     assert_equal nil, res.first['v_int2']
+    client.update 'test01',{:v_int1=>3},Mysql2wrapper::Client::UPDATE_ALL
+    assert_equal 0, client.affected_rows
+    client.update 'test01',{:v_int1=>4},client.update_all_flag
+    assert_equal 3, client.affected_rows
 
     client.close
   end

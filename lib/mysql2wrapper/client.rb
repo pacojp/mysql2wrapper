@@ -14,8 +14,6 @@ class Mysql2wrapper::Client
   QUERY_BASE_COLOR    = 35
   QUERY_SPECIAL_COLOR = 31
 
-
-
   MULTIPLE_INSERT_DEFAULT = 100
 
   def initialize(config,_logger=Logger.new(STDOUT))
@@ -97,7 +95,6 @@ class Mysql2wrapper::Client
     escape(str)
   end
 
-
   #
   # where は 'WHERE'を付けずに指定
   # 全行updateを使用するシチュエーションはほぼ0に
@@ -120,6 +117,10 @@ class Mysql2wrapper::Client
       end.join(',')
     }" + where
     self.query(query)
+  end
+
+  def update_all_flag
+    self.class::UPDATE_ALL
   end
 
   def proceed_value(value)
