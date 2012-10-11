@@ -1,0 +1,9 @@
+test:
+  master:
+    host: 127.0.0.1
+    database: mysql2wrapper_test_master
+    username: root
+  slave:
+    host: 127.0.0.1
+    database: mysql2wrapper_test_slave
+    username: root

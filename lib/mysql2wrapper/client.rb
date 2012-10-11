@@ -4,7 +4,7 @@ require 'yaml'
 require 'mysql2'
 
 class Mysql2wrapper::Client
-  attr_accessor :client, :logger
+  attr_accessor :config, :client, :logger
 
   QUERY_BASE_COLOR    = 35
   QUERY_SPECIAL_COLOR = 31
@@ -15,6 +15,7 @@ class Mysql2wrapper::Client
     self.logger = _logger || Logger.new(STDOUT)
     self.logger.info "mysql2 client created with #{config.inspect}"
     self.client = Mysql2::Client.new(config)
+    self.config = config
     # サーバが古いので一応問題あるけど以下の方向で
     # http://kennyqi.com/archives/61.html
     self.class.query(self.client,"SET NAMES 'utf8'",self.logger)
@@ -32,6 +33,10 @@ class Mysql2wrapper::Client
       logger.info "[QUERY] "" \e[#{color}m (#{((e-s)*1000).round(2)}ms) #{str}\e[0m"
     end
     ret
+  end
+
+  def dump
+    "#{self.config.inspect}\n#{self.client.pretty_inspect}"
   end
 
   def query(str,color=QUERY_BASE_COLOR)

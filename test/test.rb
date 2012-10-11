@@ -6,15 +6,18 @@ require 'test/unit'
 require 'Fileutils'
 require 'logger'
 
-
 #
-# localhostにmysql2wrapper_testというデータベースを作成し
-# rootのパスワードなしでアクセスできるようにしておいてください
+# localhostに以下のデータベースを作成しrootのパスワード無しでアクセスできるようにしておいてください
+#
+# mysql2wrapper_test
+# mysql2wrapper_test_master
+# mysql2wrapper_test_slave
 #
 
 class TestMysql2wrapper < Test::Unit::TestCase
 
   def setup
+    @i = 0
     client = get_client
 
     query = 'DROP TABLE IF EXISTS `test01`'
@@ -22,15 +25,7 @@ class TestMysql2wrapper < Test::Unit::TestCase
     query = 'DROP TABLE IF EXISTS `test02`'
     client.query query
 
-    query = '
-CREATE TABLE IF NOT EXISTS `test01` (
-  `id` int(11) NOT NULL auto_increment,
-  `v_int1` int(11) NOT NULL,
-  `created_at` datetime NOT NULL,
-  `updated_at` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
-  PRIMARY KEY  (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-    '
+    query = simple_table_create_query('test01')
     client.query query
 
     query = '
@@ -72,6 +67,25 @@ CREATE TABLE IF NOT EXISTS `test02` (
     db_config = Mysql2wrapper::Client.config_from_yml(db_yml_path,'test')
     client = Mysql2wrapper::Client.new(db_config,Logger.new('/dev/null'))
     client
+  end
+
+  def simple_table_create_query(table)
+    "
+CREATE TABLE IF NOT EXISTS `#{table}` (
+  `id` int(11) NOT NULL auto_increment,
+  `v_int1` int(11) NOT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  PRIMARY KEY  (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+    "
+  end
+
+  def hash_for_simple_table
+    {
+      :v_int1     => proc{ @i+=1 },
+      :created_at => 'NOW()'.to_func,
+    }
   end
 
   def insert(client)
@@ -209,10 +223,7 @@ CREATE TABLE IF NOT EXISTS `test02` (
   def test_multiple_insert
     client = get_client
     @i = 0
-    hash = {
-      :v_int1     => proc{ @i+=1 },
-      :created_at => 'NOW()'.to_func,
-    }
+    hash = hash_for_simple_table
     client.insert('test01',hash)
     res = client.query ("SELECT * FROM test01")
     assert_equal 1, res.size
@@ -234,5 +245,36 @@ CREATE TABLE IF NOT EXISTS `test02` (
       query = "INSERT INTO test01 (v_int1)values(1)"
       client.query(query)
     end
+  end
+
+  def test_multiple_database
+    db_yml_path   = File::dirname(__FILE__) + '/../config/database_multiple.yml'
+    config_master = Mysql2wrapper::Client.config_from_yml(db_yml_path,'test','master')
+    config_slave  = Mysql2wrapper::Client.config_from_yml(db_yml_path,'test','slave')
+    client_master = Mysql2wrapper::Client.new(config_master,Logger.new('/dev/null'))
+    client_slave  = Mysql2wrapper::Client.new(config_slave,Logger.new('/dev/null'))
+
+    client_master.query 'DROP TABLE IF EXISTS tbl_master'
+    client_master.query simple_table_create_query('tbl_master')
+    client_slave.query  'DROP TABLE IF EXISTS tbl_slave'
+    client_slave.query  simple_table_create_query('tbl_slave')
+
+    assert_equal 0,client_master.count('tbl_master')
+    assert_equal 0,client_slave.count('tbl_slave')
+
+    client_master.insert('tbl_master',hash_for_simple_table)
+
+    assert_equal 1,client_master.count('tbl_master')
+    assert_equal 0,client_slave.count('tbl_slave')
+
+    client_master.insert('tbl_master',hash_for_simple_table)
+
+    assert_equal 2,client_master.count('tbl_master')
+    assert_equal 0,client_slave.count('tbl_slave')
+
+    client_slave.insert('tbl_slave',hash_for_simple_table)
+
+    assert_equal 2,client_master.count('tbl_master')
+    assert_equal 1,client_slave.count('tbl_slave')
   end
 end
