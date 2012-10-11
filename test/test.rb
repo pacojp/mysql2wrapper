@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `test02` (
   def get_client
     db_yml_path = File::dirname(__FILE__) + '/../config/database.yml'
     db_config = Mysql2wrapper::Client.config_from_yml(db_yml_path,'test')
-    client = Mysql2wrapper::Client.new(db_config,Logger.new('/dev/null'))
+    client = Mysql2wrapper::Client.new(db_config,nil)
     client
   end
 
@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS `test02` (
 CREATE TABLE IF NOT EXISTS `#{table}` (
   `id` int(11) NOT NULL auto_increment,
   `v_int1` int(11) NOT NULL,
+  `v_int2` int(11),
+  `v_str1` varchar(10) ,
   `created_at` datetime NOT NULL,
   `updated_at` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
   PRIMARY KEY  (`id`)
@@ -97,12 +99,106 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     client.count('test01','id')
   end
 
+  def test_to_func
+    assert_equal false,''.function_sql?
+    assert_equal true,''.to_func.function_sql?
+    st = ""
+    assert_equal false,st.function_sql?
+    st = st.to_func
+    assert_equal true,st.function_sql?
+    assert_equal true,proc{"".to_func}.call.function_sql?
+    assert_equal true,Proc.new{"".to_func}.call.function_sql?
+  end
+
   def test_count
     client = get_client
     assert_equal 0,client.count('test01','id')
     query = "INSERT INTO test01 (v_int1,created_at)VALUES(#{Time.now.to_i},NOW())"
     client.query query
     assert_equal 1,client.count('test01','id')
+    query = "INSERT INTO test01 (v_int1,created_at)VALUES(#{Time.now.to_i},NOW())"
+    client.query query
+    assert_equal 2,client.count('test01','id')
+    client.close
+  end
+
+  def test_select
+    client = get_client
+    assert_equal 0,client.count('test01','id')
+    query = "INSERT INTO test01 (v_int1,created_at)VALUES(123,NOW())"
+    client.query query
+    assert_equal 1,client.count('test01','id')
+    res = client.query "SELECT * FROM test01 WHERE id = 1"
+    assert_equal 123, res.first['v_int1']
+    assert_equal 1, client.affected_rows
+    query = "INSERT INTO test01 (v_int1,created_at)VALUES(123,NOW())"
+    client.query query
+    res = client.query "SELECT * FROM test01 WHERE id = 1"
+    assert_equal 1, client.affected_rows
+    res = client.query "SELECT * FROM test01"
+    assert_equal 2, client.affected_rows
+    client.close
+  end
+
+  def test_update
+    client = get_client
+    query = "INSERT INTO test01 (v_int1,created_at)VALUES(1,NOW())"
+    client.query query
+    client.query query
+    client.query query
+
+    res = client.query "SELECT * FROM test01 WHERE id = 1"
+    assert_equal 1, res.first['v_int1']
+    assert_equal nil, res.first['v_int2']
+    res = client.query "SELECT * FROM test01 WHERE id = 2"
+    assert_equal 1, res.first['v_int1']
+    assert_equal nil, res.first['v_int2']
+
+    client.update 'test01',{:v_int1=>2},'id = 1'
+    assert_equal 1, client.affected_rows
+
+    res = client.query "SELECT * FROM test01 WHERE id = 1"
+    assert_equal 2, res.first['v_int1']
+    assert_equal nil, res.first['v_int2']
+    res = client.query "SELECT * FROM test01 WHERE id = 2"
+    assert_equal 1, res.first['v_int1']
+    assert_equal nil, res.first['v_int2']
+
+    client.update 'test01',{:v_int1=>3},Mysql2wrapper::Client::UPDATE_ALL
+
+    assert_equal 3, client.affected_rows
+    res = client.query "SELECT * FROM test01 WHERE id = 1"
+    assert_equal 3, res.first['v_int1']
+    assert_equal nil, res.first['v_int2']
+    res = client.query "SELECT * FROM test01 WHERE id = 2"
+    assert_equal 3, res.first['v_int1']
+    assert_equal nil, res.first['v_int2']
+
+    client.close
+  end
+
+  def test_update_all_limitter
+    client = get_client
+    query = "INSERT INTO test01 (v_int1,created_at)VALUES(1,NOW())"
+    client.query query
+
+    assert_raise(ArgumentError){
+      client.update 'test01',{:v_int1=>3},nil
+    }
+
+    assert_raise(Mysql2::Error){
+      client.update 'test01',{:v_int1=>3},''
+    }
+  end
+
+  def test_escape
+    client = get_client
+    assert_equal 0,client.count('test01','id')
+    query = "INSERT INTO test01 (v_int1,v_str1,created_at)VALUES(#{Time.now.to_i},'#{client.escape("'te'st'st'")}',NOW())"
+    client.query query
+    res = client.query "SELECT * FROM test01"
+    assert_equal 1,res.size
+    assert_equal "'te'st'st'",res.first['v_str1']
     client.close
   end
 
@@ -170,7 +266,6 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     client2.close
   end
 
-  # TODO
   def test_insert
     client = get_client
     @i = 0
@@ -178,7 +273,7 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
       :v_int1 => proc{ @i+=1 },
       :v_int2 => 246,
       :v_int3 => nil,
-      :v_str1=>"te'st",
+      :v_str1=>"te'st日本語",
       :v_str2=>"CONCAT('My','S','QL')".to_func,
       :v_str3 => nil,
       :v_bool1 => true,
@@ -193,6 +288,7 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
       :created_at => 'NOW()'.to_func,
     }
     client.insert('test02',hash)
+    assert_equal 1, client.affected_rows
     client.insert('test02',hash)
     res = client.query ("SELECT * FROM test02")
     assert_equal 2, res.size
@@ -201,7 +297,7 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 246,     row['v_int2']
     assert_equal nil,     row['v_int3']
     assert_equal nil,     row['v_int4']
-    assert_equal 'te\'st',  row['v_str1']
+    assert_equal 'te\'st日本語', row['v_str1']
     assert_equal 'MySQL', row['v_str2']
     assert_equal nil,     row['v_str3']
     assert_equal nil,     row['v_str4']
@@ -227,6 +323,7 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     client.insert('test01',hash)
     res = client.query ("SELECT * FROM test01")
     assert_equal 1, res.size
+    assert_equal 1, client.affected_rows
     client.insert('test01',hash)
     res = client.query ("SELECT * FROM test01")
     assert_equal 2, res.size
@@ -234,6 +331,7 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     ar = []
     111.times{ar << hash}
     client.insert('test01',ar)
+    assert_equal 111, client.affected_rows
     res = client.query ("SELECT * FROM test01")
     assert_equal 113, res.size
     assert_equal 113, res.to_a.last['v_int1']
@@ -251,8 +349,8 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     db_yml_path   = File::dirname(__FILE__) + '/../config/database_multiple.yml'
     config_master = Mysql2wrapper::Client.config_from_yml(db_yml_path,'test','master')
     config_slave  = Mysql2wrapper::Client.config_from_yml(db_yml_path,'test','slave')
-    client_master = Mysql2wrapper::Client.new(config_master,Logger.new('/dev/null'))
-    client_slave  = Mysql2wrapper::Client.new(config_slave,Logger.new('/dev/null'))
+    client_master = Mysql2wrapper::Client.new(config_master,nil)
+    client_slave  = Mysql2wrapper::Client.new(config_slave,nil)
 
     client_master.query 'DROP TABLE IF EXISTS tbl_master'
     client_master.query simple_table_create_query('tbl_master')

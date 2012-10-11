@@ -5,15 +5,24 @@ require 'mysql2'
 
 class Mysql2wrapper::Client
   attr_accessor :config, :client, :logger
+  attr_reader :affected_rows
 
+  # 全行更新用のフラグ表現クラス
+  class UpdateAllClass;end
+
+  UPDATE_ALL          = UpdateAllClass
   QUERY_BASE_COLOR    = 35
   QUERY_SPECIAL_COLOR = 31
 
+
+
   MULTIPLE_INSERT_DEFAULT = 100
 
-  def initialize(config,_logger=nil)
-    self.logger = _logger || Logger.new(STDOUT)
-    self.logger.info "mysql2 client created with #{config.inspect}"
+  def initialize(config,_logger=Logger.new(STDOUT))
+    self.logger = _logger
+    if self.logger
+      self.logger.info "mysql2 client created with #{config.inspect}"
+    end
     self.client = Mysql2::Client.new(config)
     self.config = config
     # サーバが古いので一応問題あるけど以下の方向で
@@ -23,16 +32,22 @@ class Mysql2wrapper::Client
     self.class.query(self.client,"SET SQL_MODE=STRICT_ALL_TABLES",self.logger)
   end
 
-  # TODO 実行時間。更新項目数
-  def self.query(client,str,logger=nil,color=QUERY_BASE_COLOR)
+  def self.query(client,sql_query,logger=nil,color=QUERY_BASE_COLOR)
     s = Time.now
-    ret = client.query(str)
+    ret = client.query(sql_query)
     e = Time.now
     if logger
       # TODO too long sql shorten
-      logger.info "[QUERY] "" \e[#{color}m (#{((e-s)*1000).round(2)}ms) #{str}\e[0m"
+      if sql_query.size > 1400
+        sql_query = sql_query[0..600] + "\n<< trimed >>\n" + sql_query[(sql_query.size - 600)..(sql_query.size - 1)]
+      end
+      logger.info "[QUERY] "" \e[#{color}m (#{((e-s)*1000).round(2)}ms/#{client.affected_rows}rows) #{sql_query}\e[0m"
     end
     ret
+  end
+
+  def stop_logging
+    self.logger = nil
   end
 
   def dump
@@ -40,7 +55,9 @@ class Mysql2wrapper::Client
   end
 
   def query(str,color=QUERY_BASE_COLOR)
-    self.class.query(self.client,str,self.logger,color)
+    res = self.class.query(self.client,str,self.logger,color)
+    @affected_rows = self.client.affected_rows
+    res
   end
 
   def transaction(&proc)
@@ -65,15 +82,77 @@ class Mysql2wrapper::Client
   end
 
   def count(table_name,key_name='*')
-    query("SELECT COUNT(#{self.client.escape(key_name)}) AS cnt FROM #{self.client.escape(table_name)}").first['cnt']
+    query("SELECT COUNT(#{escape(key_name)}) AS cnt FROM #{escape(table_name)}").first['cnt']
   end
 
   def close
     self.client.close if self.client
   end
 
+  def escape(str)
+    self.client.escape(str)
+  end
+
+  def sanitize(str)
+    escape(str)
+  end
+
+
+  #
+  # where は 'WHERE'を付けずに指定
+  # 全行updateを使用するシチュエーションはほぼ0に
+  # 近いと思われるので、簡単には実行できなくしてます
+  # 実際に実行する際はwhereにUpdateAllを引数とします
+  # client.update 'test01',{:v_int1=>3},Mysql2wrapper::Client::UPDATE_ALL
+  #
+  def update(table_name,hash,where)
+    case where
+    when String
+      where = "WHERE #{where}"
+    when UpdateAllClass.class
+      where = ''
+    else
+      raise ArgumentError, "where must be String or UpdateAll"
+    end
+    query = "UPDATE `#{escape(table_name)}` SET #{
+      hash.map do |key,value|
+        "`#{escape(key.to_s)}` = #{proceed_value(value)}"
+      end.join(',')
+    }" + where
+    self.query(query)
+  end
+
+  def proceed_value(value)
+    case value
+    when Proc
+      "'#{escape(value.call.to_s)}'"
+    when nil
+      "NULL"
+    when TrueClass,FalseClass
+      if value
+        "'1'"
+      else
+        "'0'"
+      end
+    when Time,DateTime
+      "'#{value.strftime("%Y-%m-%d %H:%M:%S")}'"
+    when Date
+      "'#{value.strftime("%Y-%m-%d")}'"
+    else
+      s = value
+      s = s.to_s unless s.kind_of?(String)
+      if s.respond_to?(:function_sql?) && s.function_sql?
+        "#{value.to_s}"
+      else
+        "'#{escape(value.to_s)}'"
+      end
+    end
+  end
+
   def insert(table_name,data,multiple_insert_by=MULTIPLE_INSERT_DEFAULT)
-    query = "INSERT INTO `#{self.client.escape(table_name)}`"
+    @affected_rows = 0 # 一応リセットしとくか、、、
+    affected_rows_total = 0
+    query = "INSERT INTO `#{escape(table_name)}`"
     _datas = data.clone
     case _datas
     when Array
@@ -86,47 +165,26 @@ class Mysql2wrapper::Client
 
     return nil if _datas.size == 0
 
+    # TODO affected_rows by multiple
     _datas.each_slice(multiple_insert_by).each do |rows|
       query = <<"EOS"
-INSERT INTO `#{self.client.escape(table_name)}`
-(#{rows.first.keys.map{|o|"`#{self.client.escape(o.to_s)}`"}.join(',')})
+INSERT INTO `#{escape(table_name)}`
+(#{rows.first.keys.map{|o|"`#{escape(o.to_s)}`"}.join(',')})
 VALUES
 #{
   rows.map do |row|
   "(#{
     row.map do |key,value|
-      case value
-      when Proc
-        "'#{self.client.escape(value.call.to_s)}'"
-      when nil
-        "NULL"
-      when TrueClass,FalseClass
-        if value
-          "'1'"
-        else
-          "'0'"
-        end
-      # TODO when datetime time
-      when Time,DateTime
-        "'#{value.strftime("%Y-%m-%d %H:%M:%S")}'"
-      when Date
-        "'#{value.strftime("%Y-%m-%d")}'"
-      else
-        s = value
-        s = s.to_s unless s.kind_of?(String)
-        if s.respond_to?(:function_sql?) && s.function_sql?
-          "#{value.to_s}"
-        else
-          "'#{self.client.escape(value.to_s)}'"
-        end
-      end
+      proceed_value(value)
     end.join(',')
   })"
   end.join(',')
 }
 EOS
       self.query(query.chomp)
+      affected_rows_total += self.client.affected_rows
     end
+    @affected_rows = affected_rows_total
   end
 
   #

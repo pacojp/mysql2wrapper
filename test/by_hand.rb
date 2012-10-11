@@ -8,6 +8,7 @@ $: << File.dirname(__FILE__)
 
 require 'rubygems'
 require 'test_helper'
+require 'logger'
 
 require 'mysql2wrapper'
 
@@ -73,4 +74,7 @@ begin
 rescue
 end
 puts "hoge has #{client.count 'hoges'}rows"
+
+client.update 'hoges',{:v_int1=>2},'id = 1'
+client.update 'hoges',{:v_int1=>2},client.class::UPDATE_ALL
 
