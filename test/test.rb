@@ -379,4 +379,17 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 2,client_master.count('tbl_master')
     assert_equal 1,client_slave.count('tbl_slave')
   end
+
+  # TODO
+  def test_message_for_database_yaml_error
+  end
+
+
+  # TODO
+  def test_table_names
+  end
+
+  # TODO
+  def test_table_infomations
+  end
 end

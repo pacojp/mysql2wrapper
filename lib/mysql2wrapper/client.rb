@@ -200,4 +200,9 @@ EOS
     end
     db_config
   end
+
+  def tables
+    query = "select * from INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '#{escape(self.config[:database])}' AND TABLE_TYPE = 'BASE TABLE'"
+    self.client.query query
+  end
 end

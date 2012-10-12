@@ -32,6 +32,17 @@ CREATE TABLE IF NOT EXISTS `hoges` (
   PRIMARY KEY  (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;'
 client.query query
+query = '
+CREATE TABLE IF NOT EXISTS `hoges_the_movie` (
+  `id` int(11) NOT NULL auto_increment,
+  `value1` int(11) NOT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  PRIMARY KEY  (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;'
+client.query query
+
+p client.tables
 
 logger.info "hoge has #{client.count 'hoges'}rows"
 client.query "INSERT INTO hoges (value1,created_at)VALUES(#{Time.now.to_i},NOW())"
