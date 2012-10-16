@@ -4,7 +4,7 @@ require 'yaml'
 require 'mysql2'
 
 class Mysql2wrapper::Client
-  attr_accessor :config, :client, :logger
+  attr_accessor :config, :client, :logger, :last_query
   attr_reader :affected_rows
 
   # 全行更新用のフラグ表現クラス
@@ -52,8 +52,9 @@ class Mysql2wrapper::Client
     "#{self.config.inspect}\n#{self.client.pretty_inspect}"
   end
 
-  def query(str,color=QUERY_BASE_COLOR)
-    res = self.class.query(self.client,str,self.logger,color)
+  def query(str_query,color=QUERY_BASE_COLOR)
+    self.last_query = str_query
+    res = self.class.query(self.client,str_query,self.logger,color)
     @affected_rows = self.client.affected_rows
     res
   end
@@ -79,8 +80,12 @@ class Mysql2wrapper::Client
     config = new_config
   end
 
-  def count(table_name,key_name='*')
-    query("SELECT COUNT(#{escape(key_name)}) AS cnt FROM #{escape(table_name)}").first['cnt']
+  def count(table_name,key_name='*',where=nil)
+    query = "SELECT COUNT(#{escape(key_name)}) AS cnt FROM #{escape(table_name)}"
+    if where
+      query = "#{query} #{parse_where where}"
+    end
+    query(query).first['cnt']
   end
 
   def close
@@ -104,10 +109,11 @@ class Mysql2wrapper::Client
   #
   def update(table_name,hash,where)
     case where
-    when String
-      where = "WHERE #{where}"
+    when '',nil
+      raise ArgumentError, 'can not set blank or nil on where with update(you shoule use UpdateAllClass with where)'
     when UpdateAllClass.class
-      where = ''
+      where = nil
+    when String,Hash
     else
       raise ArgumentError, "where must be String or UpdateAll"
     end
@@ -115,8 +121,43 @@ class Mysql2wrapper::Client
       hash.map do |key,value|
         "`#{escape(key.to_s)}` = #{proceed_value(value)}"
       end.join(',')
-    }" + where
+    }"
+    if where
+      query = "#{query} #{parse_where where}"
+    end
     self.query(query)
+  end
+
+  def select(table_name,select,where=nil)
+    query = "SELECT #{select} FROM `#{escape table_name}`"
+    if where
+      query = "#{query} #{parse_where(where)}"
+    end
+    query query
+  end
+
+  def parse_where(v)
+    case v
+    when String
+      if v.size > 0
+        "WHERE #{v}"
+      else
+        ''
+      end
+    when Hash
+      "WHERE #{
+        v.map do |key,value|
+          case value
+          when nil
+            "`#{escape(key.to_s)}` IS NULL"
+          else
+            "`#{escape(key.to_s)}` = #{proceed_value(value)}"
+          end
+        end.join(' AND ')
+      }"
+    else
+      raise 'can set String or Hash on where'
+    end
   end
 
   def update_all_flag
@@ -151,7 +192,7 @@ class Mysql2wrapper::Client
   end
 
   def insert(table_name,data,multiple_insert_by=MULTIPLE_INSERT_DEFAULT)
-    @affected_rows = 0 # 一応リセットしとくか、、、
+    @affected_rows = 0 # 一応リセット
     affected_rows_total = 0
     query = "INSERT INTO `#{escape(table_name)}`"
     _datas = data.clone
@@ -166,7 +207,6 @@ class Mysql2wrapper::Client
 
     return nil if _datas.size == 0
 
-    # TODO affected_rows by multiple
     _datas.each_slice(multiple_insert_by).each do |rows|
       query = <<"EOS"
 INSERT INTO `#{escape(table_name)}`
@@ -192,17 +232,27 @@ EOS
   # db_server_nameはDB名そのもの（複数DB対応）
   #
   def self.config_from_yml(yml_path,environment,db_server_name=nil)
+    raise "yaml not found(#{yml_path})" unless File.exists?(yml_path)
     db_config = YAML.load_file(yml_path)[environment]
     if db_server_name
-      db_config = self.make_config_key_symbol(db_config[db_server_name])
-    else
-      db_config = self.make_config_key_symbol(db_config)
+      db_config = db_config[db_server_name]
     end
-    db_config
+    unless db_config
+      raise "can not get db_config with env:#{environment}#{db_server_name ? "/db_server:#{db_server_name}":''}"
+    end
+    self.make_config_key_symbol(db_config)
   end
 
   def tables
+    table_informations.map{|o|o['TABLE_NAME']}
+  end
+
+  def table_names
+    table_informations.map{|o|o['TABLE_NAME']}
+  end
+
+  def table_informations
     query = "select * from INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '#{escape(self.config[:database])}' AND TABLE_TYPE = 'BASE TABLE'"
-    self.client.query query
+    self.client.query(query).to_a
   end
 end

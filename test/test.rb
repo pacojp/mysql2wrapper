@@ -58,7 +58,6 @@ CREATE TABLE IF NOT EXISTS `test02` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     '
     client.query query
-
     client.close
   end
 
@@ -113,12 +112,16 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
   def test_count
     client = get_client
     assert_equal 0,client.count('test01','id')
-    query = "INSERT INTO test01 (v_int1,created_at)VALUES(#{Time.now.to_i},NOW())"
-    client.query query
+    client.insert('test01',{:v_int1=>11,:created_at=>'NOW()'.to_func})
     assert_equal 1,client.count('test01','id')
-    query = "INSERT INTO test01 (v_int1,created_at)VALUES(#{Time.now.to_i},NOW())"
-    client.query query
+    client.insert('test01',{:v_int1=>11,:created_at=>'NOW()'.to_func})
     assert_equal 2,client.count('test01','id')
+    client.insert('test01',{:v_int1=>11,:v_int2=>22,:created_at=>'NOW()'.to_func})
+    assert_equal 3,client.count('test01','id',{:v_int1=>11})
+    assert_equal 3,client.count('test01','id',"v_int1 = 11")
+    assert_equal 1,client.count('test01','id',{:v_int2=>22})
+    assert_equal 1,client.count('test01','id',{:v_int1=>11,:v_int2=>22})
+    assert_equal 1,client.count('test01','id',"v_int1 = 11 AND v_int2 = 22")
     client.close
   end
 
@@ -135,7 +138,22 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     client.query query
     res = client.query "SELECT * FROM test01 WHERE id = 1"
     assert_equal 1, client.affected_rows
+    res = client.select "test01",'*',{:id=>1}
+    assert_equal 1, client.affected_rows
     res = client.query "SELECT * FROM test01"
+    assert_equal 2, client.affected_rows
+
+    query = "INSERT INTO test01 (v_int1,v_int2,created_at)VALUES(123,234,NOW())"
+    client.query query
+    res = client.select "test01",'id',{:v_int1=>123,:v_int2=>234}
+    assert_equal 1, client.affected_rows
+    assert_equal 1, res.size
+    res = client.select "test01",'*',"v_int1 =123 AND v_int2 = 234"
+    assert_equal 1, client.affected_rows
+    assert_equal 1, res.size
+    res = client.select "test01",'id',{:v_int1=>123,:v_int2=>nil}
+    assert_equal 2, client.affected_rows
+    res = client.select "test01",'*',"v_int1=123 AND v_int2 IS NULL"
     assert_equal 2, client.affected_rows
     client.close
   end
@@ -147,16 +165,8 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     client.query query
     client.query query
 
-    res = client.query "SELECT * FROM test01 WHERE id = 1"
-    assert_equal 1, res.first['v_int1']
-    assert_equal nil, res.first['v_int2']
-    res = client.query "SELECT * FROM test01 WHERE id = 2"
-    assert_equal 1, res.first['v_int1']
-    assert_equal nil, res.first['v_int2']
-
     client.update 'test01',{:v_int1=>2},'id = 1'
     assert_equal 1, client.affected_rows
-
     res = client.query "SELECT * FROM test01 WHERE id = 1"
     assert_equal 2, res.first['v_int1']
     assert_equal nil, res.first['v_int2']
@@ -164,6 +174,8 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 1, res.first['v_int1']
     assert_equal nil, res.first['v_int2']
 
+    client.update 'test01',{:v_int2=>3},{:id=>3}
+    assert_equal 1, client.affected_rows
     client.update 'test01',{:v_int1=>3}, client.update_all_flag
 
     assert_equal 3, client.affected_rows
@@ -174,8 +186,16 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 3, res.first['v_int1']
     assert_equal nil, res.first['v_int2']
     client.update 'test01',{:v_int1=>3},Mysql2wrapper::Client::UPDATE_ALL
+    assert_equal 0, client.affected_rows # 更新行が無いので
+
+    client.update 'test01',{:v_int1=>4},{:v_int1=>2,:v_int2=>nil}
     assert_equal 0, client.affected_rows
-    client.update 'test01',{:v_int1=>4},client.update_all_flag
+    client.update 'test01',{:v_int1=>4},{:v_int1=>3,:v_int2=>nil}
+    assert_equal 2, client.affected_rows
+    client.update 'test01',{:v_int1=>4},{:v_int1=>3,:v_int2=>3}
+    assert_equal 1, client.affected_rows
+
+    client.update 'test01',{:v_int1=>5},client.update_all_flag
     assert_equal 3, client.affected_rows
 
     client.close
@@ -189,9 +209,12 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_raise(ArgumentError){
       client.update 'test01',{:v_int1=>3},nil
     }
+    assert_raise(ArgumentError){
+      client.update 'test01',{:v_int1=>3},''
+    }
 
     assert_raise(Mysql2::Error){
-      client.update 'test01',{:v_int1=>3},''
+      client.update 'test01',{:v_int5=>3},Mysql2wrapper::Client::UPDATE_ALL
     }
   end
 
@@ -384,12 +407,33 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
   def test_message_for_database_yaml_error
   end
 
+  def test_tables
+    client = get_client
+    assert_equal 2, client.tables.size
+    client.tables.each do |table_name|
+      assert %w|test01 test02|.include?(table_name)
+    end
+  end
 
   # TODO
   def test_table_names
+    client = get_client
+    assert_equal 2, client.tables.size
+    client.tables.each do |table_name|
+      assert %w|test01 test02|.include?(table_name)
+    end
+  end
+
+  def test_config_from_yml
   end
 
   # TODO
   def test_table_infomations
+    client = get_client
+    table_informations = client.table_informations
+    assert_equal 2, table_informations.size
+    table_informations.each do |hash|
+      assert %w|test01 test02|.include?(hash['TABLE_NAME'])
+    end
   end
 end
