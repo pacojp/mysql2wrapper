@@ -111,17 +111,20 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
 
   def test_count
     client = get_client
-    assert_equal 0,client.count('test01','id')
+    assert_equal 0,client.count('test01',nil,'id')
+    assert_equal 0,client.count('test01')
     client.insert('test01',{:v_int1=>11,:created_at=>'NOW()'.to_func})
-    assert_equal 1,client.count('test01','id')
+    assert_equal 1,client.count('test01')
     client.insert('test01',{:v_int1=>11,:created_at=>'NOW()'.to_func})
-    assert_equal 2,client.count('test01','id')
+    assert_equal 2,client.count('test01',nil,'id')
+    assert_equal 2,client.count('test01',nil,'*')
+    assert_equal 2,client.count('test01')
     client.insert('test01',{:v_int1=>11,:v_int2=>22,:created_at=>'NOW()'.to_func})
-    assert_equal 3,client.count('test01','id',{:v_int1=>11})
-    assert_equal 3,client.count('test01','id',"v_int1 = 11")
-    assert_equal 1,client.count('test01','id',{:v_int2=>22})
-    assert_equal 1,client.count('test01','id',{:v_int1=>11,:v_int2=>22})
-    assert_equal 1,client.count('test01','id',"v_int1 = 11 AND v_int2 = 22")
+    assert_equal 3,client.count('test01',{:v_int1=>11},'id')
+    assert_equal 3,client.count('test01',"v_int1 = 11",'id')
+    assert_equal 1,client.count('test01',{:v_int2=>22},'id')
+    assert_equal 1,client.count('test01',{:v_int1=>11,:v_int2=>22},'id')
+    assert_equal 1,client.count('test01',"v_int1 = 11 AND v_int2 = 22",'id')
     client.close
   end
 

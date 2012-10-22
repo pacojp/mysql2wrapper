@@ -84,7 +84,8 @@ class Mysql2wrapper::Client
     config = new_config
   end
 
-  def count(table_name,key_name='*',where=nil)
+  #def count(table_name,key_name='*',where=nil)
+  def count(table_name,where=nil,key_name='*')
     query = "SELECT COUNT(#{escape(key_name)}) AS cnt FROM #{escape(table_name)}"
     if where
       query = "#{query} #{parse_where where}"
