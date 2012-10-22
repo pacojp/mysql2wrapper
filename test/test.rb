@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     client.close
   end
 
+
   def test_tranasction_simple
     client = get_client
     insert(client)
@@ -311,6 +312,16 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 3,count(client2)
     client1.close
     client2.close
+  end
+
+  def test_tranasction_nest
+    client = get_client
+    assert_raise(StandardError) do
+      client.transaction do
+        client.transaction do
+        end
+      end
+    end
   end
 
   def test_insert

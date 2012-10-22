@@ -63,9 +63,19 @@ class Mysql2wrapper::Client
     res
   end
 
+  # HACKME
+  # トランザクションのネストをどう考えるか
+  # このライブラリを使うシチュエーションの場合は
+  # トランザクションのネストを許さないシチュエーションな気がするので
+  # 一応エラーを上げるようにしてますが、、、、
   def transaction(&proc)
     raise ArgumentError, "No block was given" unless block_given?
     #query "SET AUTOCOMMIT=0;",QUERY_SPECIAL_COLOR
+    if @__inside_transaction
+      # HACHME エラーの種別の検討
+      raise StandardError, 'can not nest transaction!!!!'
+    end
+    @__inside_transaction = true
     query "BEGIN",QUERY_SPECIAL_COLOR
     begin
       yield
@@ -73,6 +83,8 @@ class Mysql2wrapper::Client
     rescue => e
       query "ROLLBACK",QUERY_SPECIAL_COLOR
       raise e
+    ensure
+      @__inside_transaction = false
     end
   end
 
