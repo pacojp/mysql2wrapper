@@ -53,7 +53,11 @@ class Mysql2wrapper::Client
   end
 
   def query(str_query,color=QUERY_BASE_COLOR)
-    self.last_query = str_query
+    case str_query
+    when /^SET /,'COMMIT','ROLLBACK'
+    else
+      self.last_query = str_query
+    end
     res = self.class.query(self.client,str_query,self.logger,color)
     @affected_rows = self.client.affected_rows
     res

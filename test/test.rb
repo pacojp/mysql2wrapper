@@ -125,6 +125,22 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     client.close
   end
 
+  def test_last_query
+    client = get_client
+    query = "INSERT INTO test01 (v_int1,created_at)VALUES(123,NOW())"
+    client.query query
+    assert_equal query,client.last_query
+    begin
+      client.transaction do
+        client.query query
+        assert_equal query,client.last_query
+        raise 'hoho'
+      end
+    rescue => e
+      assert_equal query,client.last_query
+    end
+  end
+
   def test_select
     client = get_client
     assert_equal 0,client.count('test01','id')
