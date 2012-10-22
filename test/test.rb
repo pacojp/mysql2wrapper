@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 3,client.count('test01',"v_int1 = 11",'id')
     assert_equal 1,client.count('test01',{:v_int2=>22},'id')
     assert_equal 1,client.count('test01',{:v_int1=>11,:v_int2=>22},'id')
+    assert_equal 1,client.count('test01',{:v_int1=>11,:v_int2=>22})
     assert_equal 1,client.count('test01',"v_int1 = 11 AND v_int2 = 22",'id')
     client.close
   end
