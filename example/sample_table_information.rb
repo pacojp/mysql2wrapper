@@ -4,9 +4,8 @@ require 'logger'
 require 'pp'
 
 #
-# HACKME サンプルをちょっとはマシに書く、、、、
+# データベース内のテーブル情報を所定の書式で出力サンプル
 #
-
 
 logger = Logger.new(STDOUT)
 # フォーマッターを変える
