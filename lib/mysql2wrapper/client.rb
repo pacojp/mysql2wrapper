@@ -268,8 +268,31 @@ EOS
     table_informations.map{|o|o['TABLE_NAME']}
   end
 
+  def databases
+    query = 'show databases'
+    self.client.query(query).map{|ar|ar['Database']}
+  end
+
   def table_informations
     query = "select * from INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '#{escape(self.config[:database])}' AND TABLE_TYPE = 'BASE TABLE'"
-    self.client.query(query).to_a
+    tables = self.client.query(query).to_a
+    tables.each do |table|
+      table['COLUMNS'] = table_information_schema('COLUMNS',table['TABLE_NAME'])
+      table['INDEXES'] = table_information_schema('STATISTICS',table['TABLE_NAME'])
+    end
+    tables
+  end
+
+  def table_information_schema(type,table_name)
+    query = "
+SELECT
+  *
+FROM
+  INFORMATION_SCHEMA.#{type}
+WHERE
+table_name = '#{escape(table_name)}' AND
+table_schema = '#{escape(self.config[:database])}'
+"
+      query(query).to_a
   end
 end

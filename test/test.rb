@@ -31,7 +31,7 @@ class TestMysql2wrapper < Test::Unit::TestCase
     query = '
 CREATE TABLE IF NOT EXISTS `test02` (
   `id` int(11) NOT NULL auto_increment,
-  `v_int1` int(11) NOT NULL,
+  `v_int1` int(11) NOT NULL COMMENT \'v_int1だよん\',
   `v_int2` int(11) NOT NULL,
   `v_int3` int(11),
   `v_int4` int(11),
@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS `test02` (
   `v_time3` datetime,
   `created_at` datetime NOT NULL,
   `updated_at` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
-  PRIMARY KEY  (`id`)
+  PRIMARY KEY  (`id`),
+  KEY `idx_01` (`v_int1`) USING BTREE COMMENT \'idx_01 ダヨン\'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     '
     client.query query
@@ -459,12 +460,29 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
   end
 
   # TODO
-  def test_table_infomations
+  def test_table_informations
     client = get_client
     table_informations = client.table_informations
     assert_equal 2, table_informations.size
     table_informations.each do |hash|
       assert %w|test01 test02|.include?(hash['TABLE_NAME'])
+      assert_not_nil hash['COLUMNS']
+      assert_not_nil hash['INDEXES']
+      case hash['TABLE_NAME']
+      when 'test02'
+        assert_equal 24, hash['COLUMNS'].size
+        assert_equal 2,  hash['INDEXES'].size
+      end
     end
+  end
+
+  def test_databases
+    client = get_client
+    databases = client.databases
+    assert_equal true, databases.include?('information_schema')
+    assert_equal false,databases.include?('tbl_master')
+    assert_equal true, databases.include?('mysql2wrapper_test')
+    assert_equal true, databases.include?('mysql2wrapper_test_master')
+    assert_equal true, databases.include?('mysql2wrapper_test_slave')
   end
 end
