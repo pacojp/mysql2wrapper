@@ -1,6 +1,7 @@
 require 'rubygems'
 require 'mysql2wrapper'
 require 'logger'
+require 'pp'
 
 #
 # HACKME サンプルをちょっとはマシに書く、、、、
@@ -86,3 +87,5 @@ client.update 'hoges',{:value1=>3},Mysql2wrapper::Client::UpdateAllClass
 # clientインスタンスにショートカットあり
 client.update 'hoges',{:value1=>4},client.update_all_flag
 logger.info "hoge has #{client.count 'hoges'}rows"
+
+pp client.table_informations

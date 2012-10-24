@@ -65,8 +65,8 @@ class Mysql2wrapper::Client
 
   # HACKME
   # トランザクションのネストをどう考えるか
-  # このライブラリを使うシチュエーションの場合は
-  # トランザクションのネストを許さないシチュエーションな気がするので
+  # このライブラリを使うシチュエーションってのは
+  # トランザクションのネストを許さない場合ってな気がするので
   # 一応エラーを上げるようにしてますが、、、、
   def transaction(&proc)
     raise ArgumentError, "No block was given" unless block_given?
@@ -96,7 +96,6 @@ class Mysql2wrapper::Client
     config = new_config
   end
 
-  #def count(table_name,key_name='*',where=nil)
   def count(table_name,where=nil,key_name='*')
     query = "SELECT COUNT(#{escape(key_name)}) AS cnt FROM #{escape(table_name)}"
     if where
