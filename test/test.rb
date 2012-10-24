@@ -435,10 +435,6 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 1,client_slave.count('tbl_slave')
   end
 
-  # TODO
-  def test_message_for_database_yaml_error
-  end
-
   def test_tables
     client = get_client
     assert_equal 2, client.tables.size
@@ -447,7 +443,6 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     end
   end
 
-  # TODO
   def test_table_names
     client = get_client
     assert_equal 2, client.tables.size
@@ -459,7 +454,6 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
   def test_config_from_yml
   end
 
-  # TODO
   def test_table_informations
     client = get_client
     table_informations = client.table_informations
