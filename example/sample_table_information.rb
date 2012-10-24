@@ -33,7 +33,7 @@ client.table_informations.each do |table|
   table['INDEXES'].each do |col|
     puts "#{col['INDEX_NAME']}:#{col['INDEX_COMMENT']}"
   end
-  puts "[comment]"
+  puts "[history]"
   puts "*/"
 end
 
