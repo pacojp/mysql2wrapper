@@ -35,5 +35,6 @@ client.table_informations.each do |table|
   end
   puts "[history]"
   puts "*/"
+  puts table['CREATE TABLE']
 end
 

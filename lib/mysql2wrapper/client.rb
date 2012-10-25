@@ -53,9 +53,15 @@ class Mysql2wrapper::Client
   end
 
   def query(str_query,color=QUERY_BASE_COLOR)
-    case str_query
-    when /^SET /,'COMMIT','ROLLBACK'
-    else
+    begin
+      case str_query
+      when /^SET /,'COMMIT','ROLLBACK'
+      else
+        self.last_query = str_query
+      end
+    rescue ArgumentError => e
+      # バイナリが絡むとstr_queryに正規表現とかかけられない
+      # invalid sequence エラーになる
       self.last_query = str_query
     end
     res = self.class.query(self.client,str_query,self.logger,color)
@@ -196,14 +202,16 @@ class Mysql2wrapper::Client
       "'#{value.strftime("%Y-%m-%d %H:%M:%S")}'"
     when Date
       "'#{value.strftime("%Y-%m-%d")}'"
-    else
-      s = value
-      s = s.to_s unless s.kind_of?(String)
-      if s.respond_to?(:function_sql?) && s.function_sql?
+    when String
+      if value.respond_to?(:function_sql?) && value.function_sql?
         "#{value.to_s}"
       else
-        "'#{escape(value.to_s)}'"
+        value = escape(value)
+        #value = value.encode('utf-8', {:invalid => :replace, :undef => :replace})
+        "'#{value}'"
       end
+    else
+      "'#{escape(value.to_s)}'"
     end
   end
 
@@ -238,6 +246,7 @@ VALUES
   end.join(',')
 }
 EOS
+
       self.query(query.chomp)
       affected_rows_total += self.client.affected_rows
     end
@@ -278,6 +287,8 @@ EOS
     tables.each do |table|
       table['COLUMNS'] = table_information_schema('COLUMNS',table['TABLE_NAME'])
       table['INDEXES'] = table_information_schema('STATISTICS',table['TABLE_NAME'])
+      query = "SHOW CREATE TABLE `#{escape(table['TABLE_NAME'])}`"
+      table['CREATE TABLE'] = self.client.query(query).first['Create Table']
     end
     tables
   end

@@ -6,6 +6,7 @@ require 'test/unit'
 require 'Fileutils'
 require 'logger'
 
+TEST_IMAGE = File.expand_path(File.dirname(__FILE__))+ '/sample_datas/image.jpeg'
 #
 # localhostに以下のデータベースを作成しrootのパスワード無しでアクセスできるようにしておいてください
 #
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS `test02` (
   `v_time1` datetime NOT NULL,
   `v_time2` datetime,
   `v_time3` datetime,
+  `v_blob1` mediumblob,
   `created_at` datetime NOT NULL,
   `updated_at` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
   PRIMARY KEY  (`id`),
@@ -325,6 +327,34 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     end
   end
 
+  def test_blob
+    client = get_client
+    f = File.binread(TEST_IMAGE)
+    @i = 0
+    hash = {
+      :v_int1 => proc{ @i+=1 },
+      :v_int2 => 246,
+      :v_int3 => nil,
+      :v_str1=>"te'st日本語",
+      :v_str2=>"CONCAT('My','S','QL')".to_func,
+      :v_str3 => nil,
+      :v_bool1 => true,
+      :v_bool2 => false,
+      :v_bool3 => nil,
+      :v_date1 => Date.new(2000,1,2),
+      :v_date2 => nil,
+      :v_datetime1 => DateTime.new(2000,1,2,3,4,5),
+      :v_datetime2 => nil,
+      :v_time1 => Time.mktime(2000,1,2,3,4,5),
+      :v_time2 => nil,
+      :v_blob1 => f,
+      :created_at => 'NOW()'.to_func,
+    }
+    client.insert('test02',hash)
+    row = client.select('test02','*').first
+    assert_equal f, row['v_blob1']
+  end
+
   def test_insert
     client = get_client
     @i = 0
@@ -462,9 +492,10 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
       assert %w|test01 test02|.include?(hash['TABLE_NAME'])
       assert_not_nil hash['COLUMNS']
       assert_not_nil hash['INDEXES']
+      assert_not_nil hash['CREATE TABLE']
       case hash['TABLE_NAME']
       when 'test02'
-        assert_equal 24, hash['COLUMNS'].size
+        assert_equal 25, hash['COLUMNS'].size
         assert_equal 2,  hash['INDEXES'].size
       end
     end
