@@ -1,4 +1,5 @@
 require "mysql2wrapper/version"
+require "mysql2wrapper/core_ext"
 require "mysql2wrapper/client"
 
 class String

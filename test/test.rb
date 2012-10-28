@@ -510,4 +510,19 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal true, databases.include?('mysql2wrapper_test_master')
     assert_equal true, databases.include?('mysql2wrapper_test_slave')
   end
+
+  def test_array_select_one_must
+    ar = [1,2,2,3]
+    assert_equal 1,ar.select_one_must{|o|o == 1}
+    assert_equal 3,ar.select_one_must{|o|o == 3}
+    assert_raise StandardError do
+      ar.select_one_must{|o|o == 2}
+    end
+    assert_raise StandardError do
+      ar.select_one_must{|o|o == 4}
+    end
+
+    ar = [{:id=>1,:i=>1},{:id=>2,:i=>2}]
+    assert_equal ({:id=>1,:i=>1}),ar.select_one_must{|o|o[:id] == 1}
+  end
 end
