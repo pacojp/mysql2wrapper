@@ -525,4 +525,72 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     ar = [{:id=>1,:i=>1},{:id=>2,:i=>2}]
     assert_equal ({:id=>1,:i=>1}),ar.select_one_must{|o|o[:id] == 1}
   end
+
+  def test_mysql2_result_select_one_must
+    client = get_client
+    client.insert('test01',{:id=>1,:v_int1=>1,:created_at=>'NOW()'.to_func})
+    client.insert('test01',{:id=>2,:v_int1=>2,:created_at=>'NOW()'.to_func})
+    client.insert('test01',{:id=>3,:v_int1=>2,:created_at=>'NOW()'.to_func})
+    client.insert('test01',{:id=>4,:v_int1=>3,:created_at=>'NOW()'.to_func})
+    rows = client.query('select * from test01')
+    assert_equal 1, rows.select_one_must{|o|o['id'] == 1}['v_int1']
+    assert_equal 2, rows.select_one_must{|o|o['id'] == 3}['v_int1']
+    assert_raise StandardError do
+      rows.select_one_must{|o|o['v_int1'] == 2}
+    end
+    assert_raise StandardError do
+      rows.select_one_must{|o|o['v_int1'] == 4}
+    end
+  end
+
+
+  #
+  # http://info.dwango.co.jp/rd/2010/01/mysql.html
+  #
+  def test_queue
+    sample_row_size = 1000
+    client = get_client
+    ar = []
+    sample_row_size.times do
+      ar << {:v_int1=>1,:created_at=>'NOW()'.to_func}
+    end
+    client.insert('test01',ar)
+
+    assert_equal sample_row_size, client.count('test01')
+
+    cnt = 0
+    12.times do
+      threads = []
+      (sample_row_size / 10).times do
+        threads << Thread.new do
+          Thread.pass
+          th_client = get_client
+          query = '
+UPDATE
+  test01
+SET
+  id = LAST_INSERT_ID(id),
+  v_int1 = 2
+WHERE
+  v_int1 = 1
+ORDER BY id
+LIMIT 1
+'
+          th_client.query(query)
+          query = 'SELECT LAST_INSERT_ID() as last_id'
+          processing_id = th_client.query(query).first['last_id']
+          if processing_id != 0
+            query = "UPDATE test01 SET v_int2 = 2 WHERE id = #{processing_id}"
+            th_client.query(query)
+            cnt += 1
+          end
+          th_client.close
+        end
+        threads.each do |th|
+          th.join
+        end
+      end
+    end
+    assert_equal sample_row_size, cnt
+  end
 end

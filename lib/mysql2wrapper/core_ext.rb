@@ -7,3 +7,11 @@ class Array
     result.first
   end
 end
+
+module Mysql2
+  class Result
+    def select_one_must(&proc)
+      self.to_a.select_one_must(&proc)
+    end
+  end
+end
