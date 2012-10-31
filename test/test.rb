@@ -178,6 +178,21 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     assert_equal 2, client.affected_rows
     res = client.select "test01",'*',"v_int1=123 AND v_int2 IS NULL"
     assert_equal 2, client.affected_rows
+
+
+    res = client.select "test01",'*',{:id=>[1]}
+    assert_equal 1, client.affected_rows
+    res = client.select "test01",'*',{:id=>[1,2]}
+    assert_equal 2, client.affected_rows
+    res = client.select "test01",'*',{:id=>[1,2,999]}
+    assert_equal 2, client.affected_rows
+    res = client.select "test01",'*',{:id=>[1,2,nil]}
+    assert_equal 2, client.affected_rows
+    res = client.select "test01",'*',{:id=>[1,2,'NOW()'.to_func]}
+    assert_equal 2, client.affected_rows
+    res = client.select "test01",'*',{:id=>[1,2,Time.now]}
+    assert_equal 2, client.affected_rows
+
     client.close
   end
 
@@ -218,7 +233,10 @@ CREATE TABLE IF NOT EXISTS `#{table}` (
     client.update 'test01',{:v_int1=>4},{:v_int1=>3,:v_int2=>3}
     assert_equal 1, client.affected_rows
 
-    client.update 'test01',{:v_int1=>5},client.update_all_flag
+    client.update 'test01',{:v_int1=>5},{:v_int1=>[1,2,3,4],:v_int2=>3}
+    assert_equal 1, client.affected_rows
+
+    client.update 'test01',{:v_int1=>6},client.update_all_flag
     assert_equal 3, client.affected_rows
 
     client.close
@@ -579,16 +597,32 @@ LIMIT 1
           th_client.query(query)
           query = 'SELECT LAST_INSERT_ID() as last_id'
           processing_id = th_client.query(query).first['last_id']
+          #puts processing_id
           if processing_id != 0
-            query = "UPDATE test01 SET v_int2 = 2 WHERE id = #{processing_id}"
+            begin
+              th_client.transaction do
+                query = "UPDATE test01 SET v_int2 = v_int2 + 1 WHERE id = #{processing_id}"
+                th_client.query(query)
+              end
+            rescue
+            end
+            begin
+              th_client.transaction do
+                query = "UPDATE test01 SET v_int2 = v_int2 + 1 WHERE id = #{processing_id}"
+                th_client.query(query)
+                raise 'koko'
+              end
+            rescue
+            end
+            query = "UPDATE test01 SET v_int2 = v_int2 + 1 WHERE id = #{processing_id}"
             th_client.query(query)
             cnt += 1
           end
           th_client.close
         end
-        threads.each do |th|
-          th.join
-        end
+      end
+      threads.each do |th|
+        th.join
       end
     end
     assert_equal sample_row_size, cnt

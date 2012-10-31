@@ -172,6 +172,11 @@ class Mysql2wrapper::Client
           case value
           when nil
             "`#{escape(key.to_s)}` IS NULL"
+          when Array
+            # ここ、、、自動で条件を抜くってのもできるけど、、、、まぁそれで意図しない結果になるより
+            # エラーを上げるほうが妥当だろうて
+            raise "at least one value needs for #{key.to_s} (can not call in statement with no value)" if value.size == 0
+            "`#{escape(key.to_s)}` in (#{value.map{|o|proceed_value(o)}.join(',')})"
           else
             "`#{escape(key.to_s)}` = #{proceed_value(value)}"
           end
