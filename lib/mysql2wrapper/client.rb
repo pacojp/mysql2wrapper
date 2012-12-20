@@ -19,7 +19,12 @@ class Mysql2wrapper::Client
   def initialize(config,_logger=Logger.new(STDOUT))
     self.logger = _logger
     if self.logger
-      self.logger.info "mysql2 client created with #{config.inspect}"
+      # TODO パスワードの隠し
+      config_c = config.clone
+      if config_c[:password].present?
+        config_c[:password] = '****'
+      end
+      self.logger.info "mysql2 client created with #{config_c.inspect}"
     end
     self.client = Mysql2::Client.new(config)
     self.config = config
